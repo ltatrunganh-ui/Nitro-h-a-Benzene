@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô phỏng Nitro hóa Benzene theo quy trình</title>
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.4);
+            --water: rgba(173, 216, 230, 0.5);
+            --nitro: #f1c40f;
+            --acid: #ffffff;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        
+        .lab-space {
+            width: 900px; height: 500px; background: white; border-bottom: 15px solid #2c3e50;
+            position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 20px;
+            overflow: hidden; border-radius: 8px;
+        }
+
+        /* Ống nghiệm */
+        #test-tube-wrapper {
+            position: absolute; left: 100px; top: 100px; transition: all 1s ease; z-index: 10;
+        }
+        .tube {
+            width: 35px; height: 160px; border: 2px solid #bdc3c7; border-radius: 0 0 20px 20px;
+            background: var(--glass); position: relative; overflow: hidden;
+        }
+        #liquid-in-tube {
+            position: absolute; bottom: 0; width: 100%; height: 25%; /* HNO3 ban đầu */
+            background: var(--acid); transition: height 1s, background 1s;
+        }
+
+        /* Chậu nước đá */
+        .ice-bath {
+            position: absolute; left: 60px; bottom: 30px; width: 150px; height: 90px;
+            background: #e3f2fd; border: 3px solid #add8e6; border-radius: 10px 10px 40px 40px;
+            text-align: center; font-size: 13px; color: #2980b9; line-height: 90px; font-weight: bold;
+        }
+
+        /* Cốc chứa nước lạnh */
+        .beaker {
+            position: absolute; right: 150px; bottom: 30px; width: 140px; height: 170px;
+            border: 3px solid #bdc3c7; border-top: none; border-radius: 0 0 15px 15px;
+            background: var(--glass); z-index: 5;
+        }
+        .cold-water { position: absolute; bottom: 0; width: 100%; height: 50%; background: var(--water); }
+        #beaker-liquid-added { position: absolute; bottom: 0; width: 100%; height: 0%; background: rgba(255, 255, 255, 0.3); transition: height 1.5s; }
+
+        /* Đũa thủy tinh */
+        #glass-rod {
+            position: absolute; right: 210px; bottom: 180px; width: 6px; height: 200px;
+            background: rgba(255,255,255,0.7); border: 1px solid #eee; border-radius: 5px;
+            z-index: 12; display: none; transform-origin: top center;
+        }
+
+        /* Dòng chảy */
+        #stream {
+            position: absolute; top: 120px; right: 215px; width: 4px; height: 0;
+            background: #fff; z-index: 8; transition: height 0.5s; display: none;
+        }
+
+        /* Hạt Nitrobenzene chìm xuống */
+        .nitro-drop {
+            position: absolute; width: 10px; height: 10px; background: var(--nitro);
+            border-radius: 50%; opacity: 0; z-index: 6;
+        }
+
+        /* Animations */
+        @keyframes shaking { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(8deg); } 75% { transform: rotate(-8deg); } }
+        .shake-anim { animation: shaking 0.15s infinite; }
+        @keyframes stirring { 0% { transform: translateX(-20px); } 50% { transform: translateX(20px); } 100% { transform: translateX(-20px); } }
+        .stir-anim { animation: stirring 0.6s infinite linear; }
+
+        /* UI */
+        .controls { width: 900px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        button { padding: 12px; border: none; border-radius: 4px; background: #3498db; color: white; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; }
+        .log { margin-top: 15px; font-weight: bold; color: #e67e22; height: 20px; }
+    </style>
+</head>
+<body>
+
+    <h2 style="color: #2c3e50;">Thí nghiệm: Nitro hóa Benzene</h2>
+
+    <div class="lab-space">
+        <div class="ice-bath">CHẬU NƯỚC ĐÁ</div>
+        
+        <div id="test-tube-wrapper">
+            <div class="tube"><div id="liquid-in-tube"></div></div>
+        </div>
+
+        <div id="stream"></div>
+        <div id="glass-rod"></div>
+
+        <div class="beaker">
+            <div class="cold-water"></div>
+            <div id="beaker-liquid-added"></div>
+            <div id="oil-container"></div>
+        </div>
+
+        <div id="instruction" class="log" style="position:absolute; top:20px; width:100%; text-align:center;">
+            Ống nghiệm có sẵn 1,5 mL HNO₃ đặc.
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="btn1" onclick="step1()">1. Thêm 2 mL H₂SO₄ đặc</button>
+        <button id="btn2" onclick="step2()" disabled>2. Làm lạnh trong chậu đá</button>
+        <button id="btn3" onclick="step3()" disabled>3. Thêm 1 mL Benzene & Lắc</button>
+        <button id="btn4" onclick="step4()" disabled>4. Rót vào cốc nước lạnh</button>
+        <button id="btn5" onclick="step5()" disabled>5. Khuấy bằng đũa thủy tinh</button>
+        <button onclick="location.reload()" style="background:#e74c3c">Làm lại</button>
+    </div>
+
+    <script>
+        const tube = document.getElementById('test-tube-wrapper');
+        const tubeLiquid = document.getElementById('liquid-in-tube');
+        const stream = document.getElementById('stream');
+        const rod = document.getElementById('glass-rod');
+        const beakerLiquid = document.getElementById('beaker-liquid-added');
+        const log = document.getElementById('instruction');
+
+        function step1() {
+            log.innerText = "Đang thêm từ từ 2 mL H₂SO₄ đặc vào ống nghiệm...";
+            tubeLiquid.style.height = "55%"; // Tăng mực chất lỏng
+            document.getElementById('btn1').disabled = true;
+            setTimeout(() => {
+                log.innerText = "Đã thêm xong H₂SO₄ đặc.";
+                document.getElementById('btn2').disabled = false;
+            }, 1000);
+        }
+
+        function step2() {
+            log.innerText = "Đang làm lạnh ống nghiệm trong chậu nước đá...";
+            tube.style.top = "240px"; // Hạ vào chậu đá
+            document.getElementById('btn2').disabled = true;
+            setTimeout(() => {
+                log.innerText = "Hỗn hợp đã được làm lạnh. Sẵn sàng tạo hỗn hợp Nitro hóa.";
+                document.getElementById('btn3').disabled = false;
+            }, 1500);
+        }
+
+        function step3() {
+            log.innerText = "Đang nhỏ từ từ 1 mL Benzene vào ống nghiệm và lắc...";
+            tubeLiquid.style.height = "75%";
+            tubeLiquid.style.background = "#fff9c4"; // Đổi màu nhẹ
+            tube.classList.add('shake-anim');
+            document.getElementById('btn3').disabled = true;
+            
+            // Mô phỏng 6-10 phút bằng 4 giây
+            setTimeout(() => {
+                tube.classList.remove('shake-anim');
+                log.innerText = "Phản ứng Nitro hóa đã xảy ra sau khi lắc.";
+                document.getElementById('btn4').disabled = false;
+            }, 4000);
+        }
+
+        function step4() {
+            log.innerText = "Rót từ từ hỗn hợp vào cốc chứa nước lạnh...";
+            tube.style.top = "100px";
+            tube.style.left = "550px";
+            document.getElementById('btn4').disabled = true;
+
+            setTimeout(() => {
+                tube.style.transform = "rotate(100deg)";
+                setTimeout(() => {
+                    stream.style.display = "block";
+                    stream.style.height = "120px";
+                    tubeLiquid.style.height = "0%";
+                    beakerLiquid.style.height = "80%";
+                    
+                    setTimeout(() => {
+                        stream.style.display = "none";
+                        tube.style.transform = "rotate(0deg)";
+                        tube.style.left = "800px"; // Cất ống nghiệm
+                        document.getElementById('btn5').disabled = false;
+                    }, 1500);
+                }, 500);
+            }, 1000);
+        }
+
+        function step5() {
+            log.innerText = "Dùng đũa thủy tinh khuấy đều hỗn hợp...";
+            rod.style.display = "block";
+            rod.classList.add('stir-anim');
+            document.getElementById('btn5').disabled = true;
+
+            setTimeout(() => {
+                rod.classList.remove('stir-anim');
+                rod.style.display = "none";
+                log.innerText = "Để yên hỗn hợp. Quan sát màu chất lỏng ở đáy cốc...";
+                observeResult();
+            }, 3000);
+        }
+
+        function observeResult() {
+            const container = document.getElementById('oil-container');
+            for(let i=0; i<5; i++) {
+                setTimeout(() => {
+                    const drop = document.createElement('div');
+                    drop.className = 'nitro-drop';
+                    drop.style.left = (20 + Math.random() * 100) + "px";
+                    drop.style.top = "40px";
+                    drop.style.opacity = "1";
+                    container.appendChild(drop);
+
+                    drop.animate([
+                        { top: '40px' },
+                        { top: '155px' }
+                    ], {
+                        duration: 2000,
+                        fill: 'forwards',
+                        easing: 'ease-in'
+                    });
+                }, i * 500);
+            }
+            setTimeout(() => {
+                log.innerHTML = "Kết quả: Nitrobenzene màu vàng, không tan và nặng hơn nước nên chìm xuống đáy.";
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
